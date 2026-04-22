@@ -41,10 +41,3 @@ docker run -p 3000:3000 task-manager:v1
 npm install -g @nestjs/mau
 mau deploy
 ```
-
-## Contributors
-<!-- ALL-CONTRIBUTORS-LIST:START -->
-
-| [<img src="https://github.com" width="100px;"/>](https://github.com)<br /><sub><b>Nom Auteur</b></sub> |
-| :---: |
-<!-- ALL-CONTRIBUTORS-LIST:END -->
