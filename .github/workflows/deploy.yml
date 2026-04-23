@@ -80,6 +80,7 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: snyk-code.sarif
+        continue-on-error: true
 
   build:
     name: Build & Test
