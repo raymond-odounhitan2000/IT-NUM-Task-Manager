@@ -9,7 +9,13 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
   app.setGlobalPrefix('api');
-  app.use(helmet());
+  const isProduction = configService.get<string>('NODE_ENV') === 'production';
+
+  app.use(
+    helmet({
+      contentSecurityPolicy: isProduction ? undefined : false,
+    }),
+  );
   const allowedOrigins = configService
     .get<string>('ALLOWED_ORIGINS', '')
     .split(',');
