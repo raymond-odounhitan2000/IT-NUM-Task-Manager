@@ -1,0 +1,178 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  secrets-scan:
+    name: Secrets Scan (Gitleaks)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan secrets with Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GHCR_TOKEN }}
+
+  snyk-security:
+    name: Security (Snyk)
+    runs-on: ubuntu-latest
+    needs: secrets-scan
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Snyk CLI
+        uses: snyk/actions/setup@806182742461562b67788a64410098c9d9b96adb
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: task-manager/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./task-manager
+        run: npm ci
+
+      - name: Snyk Code test (SAST)
+        run: snyk code test --sarif > snyk-code.sarif || true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: Snyk Open Source monitor
+        run: snyk monitor --all-projects
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: Snyk IaC test
+        run: snyk iac test --report || true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: Build Docker image pour Snyk
+        run: |
+          docker build -t itnum-backend:scan ./task-manager
+
+      - name: Snyk Container monitor
+        run: snyk container monitor itnum-backend:scan --file=task-manager/Dockerfile
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: Upload SARIF to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: snyk-code.sarif
+
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    needs: snyk-security
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: task-manager/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./task-manager
+        run: npm ci
+
+      - name: Lint
+        working-directory: ./task-manager
+        run: npm run lint
+
+      - name: Run tests
+        working-directory: ./task-manager
+        run: npm run test
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t ghcr.io/${{ github.repository_owner }}/itnum-backend:${{ github.sha }} \
+            -t ghcr.io/${{ github.repository_owner }}/itnum-backend:latest \
+            ./task-manager
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Push image to GHCR
+        run: |
+          docker push ghcr.io/${{ github.repository_owner }}/itnum-backend:${{ github.sha }}
+          docker push ghcr.io/${{ github.repository_owner }}/itnum-backend:latest
+
+
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            cd /app/IT-NUM-Task-Manager || git clone https://github.com/${{ github.repository }} /app/IT-NUM-Task-Manager && cd /app/IT-NUM-Task-Manager
+
+            git pull origin main
+
+            # Créer le fichier .env depuis les secrets
+            cat > .env << EOF
+            POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+            POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            POSTGRES_HOST=${{ secrets.POSTGRES_HOST }}
+            POSTGRES_PORT=${{ secrets.POSTGRES_PORT }}
+            POSTGRES_SSL_MODE=${{ secrets.POSTGRES_SSL }}
+            GRAFANA_USER=${{ secrets.GRAFANA_USER }}
+            GRAFANA_PASSWORD=${{ secrets.GRAFANA_PASSWORD }}
+            ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }}
+            PORT=${{ secrets.PORT }}
+            JWT_ACCESS_SECRET=${{ secrets.JWT_ACCESS_SECRET }}
+            JWT_ACCESS_EXPIRES_IN=${{ secrets.JWT_ACCESS_EXPIRES_IN }}
+            JWT_REFRESH_SECRET=${{ secrets.JWT_REFRESH_SECRET }}
+            JWT_REFRESH_EXPIRES_IN=${{ secrets.JWT_REFRESH_EXPIRES_IN }}
+            EOF
+
+            echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            docker-compose -f docker-compose.yml down
+            docker-compose -f docker-compose.yml pull
+            docker-compose -f docker-compose.yml up -d
+
+            docker image prune -af
+            docker-compose ps
+            docker-compose -f docker-compose.yml ps

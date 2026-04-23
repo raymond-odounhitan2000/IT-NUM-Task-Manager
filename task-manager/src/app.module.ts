@@ -14,18 +14,19 @@ import { TerminusModule } from '@nestjs/terminus';
     TerminusModule,
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: '../.env',
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
-        host: configService.get<string>('DB_HOST'),
-        port: parseInt(configService.get<string>('DB_PORT', '5432'), 10),
-        username: configService.get<string>('DB_USER'),
-        password: configService.get<string>('DB_PASSWORD'),
-        database: configService.get<string>('DB_NAME'),
+        host: configService.get<string>('POSTGRES_HOST'),
+        port: parseInt(configService.get<string>('POSTGRES_PORT', '5432'), 10),
+        username: configService.get<string>('POSTGRES_USER'),
+        password: configService.get<string>('POSTGRES_PASSWORD'),
+        database: configService.get<string>('POSTGRES_DB'),
         ssl:
-          configService.get<string>('DB_SSL', 'true') === 'true'
+          configService.get<string>('POSTGRES_SSL', 'false') === 'true'
             ? { rejectUnauthorized: false }
             : false,
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
