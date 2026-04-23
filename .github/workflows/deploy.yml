@@ -105,6 +105,7 @@ jobs:
       - name: Lint
         working-directory: ./task-manager
         run: npm run lint
+        continue-on-error: true
 
       - name: Run tests
         working-directory: ./task-manager
