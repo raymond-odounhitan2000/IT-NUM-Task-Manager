@@ -8,6 +8,7 @@ import { TaskModule } from './task/task.module';
 import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
 import { TerminusModule } from '@nestjs/terminus';
+import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 
 @Module({
   imports: [
@@ -15,6 +16,10 @@ import { TerminusModule } from '@nestjs/terminus';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '../.env',
+    }),
+    PrometheusModule.register({
+      defaultMetrics: { enabled: true },
+      defaultLabels: { app: 'itnum-task-manager' },
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],

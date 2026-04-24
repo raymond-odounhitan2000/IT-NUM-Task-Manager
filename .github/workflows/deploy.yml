@@ -170,6 +170,7 @@ jobs:
             # Creer le fichier .env depuis les secrets
             cat > .env << EOF
             NODE_ENV=${{ secrets.NODE_ENV }}
+            HOST=${{ secrets.SSH_HOST }}
             POSTGRES_DB=${{ secrets.POSTGRES_DB }}
             POSTGRES_USER=${{ secrets.POSTGRES_USER }}
             POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}

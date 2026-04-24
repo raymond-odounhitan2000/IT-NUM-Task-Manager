@@ -50,6 +50,14 @@ export class UserService {
 
   async update(id: string, updateUserDto: UpdateUserDto) {
     const user = await this.findOne(id);
+    if (updateUserDto.email && updateUserDto.email !== user.email) {
+      const existing = await this.userRepository.findOne({
+        where: { email: updateUserDto.email },
+      });
+      if (existing) {
+        throw new ConflictException('Email already in use');
+      }
+    }
     const payload: Partial<User> = { ...updateUserDto };
     if (updateUserDto.password) {
       payload.password = await argon2.hash(updateUserDto.password);

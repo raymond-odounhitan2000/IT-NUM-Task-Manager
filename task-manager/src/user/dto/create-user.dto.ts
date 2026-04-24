@@ -13,7 +13,7 @@ export class CreateUserDto {
   @ApiProperty({ required: false, example: 'Doe' })
   @IsOptional()
   @IsString()
-  lastName!: string;
+  lastName?: string;
 
   @ApiProperty({ required: true, example: 'password123' })
   @IsString()

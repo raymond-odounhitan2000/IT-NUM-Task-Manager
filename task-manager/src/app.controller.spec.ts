@@ -1,25 +1,44 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { AppService, HealthResponse } from './app.service';
 
 describe('AppController', () => {
-  let appController: AppController;
+  let controller: AppController;
+  let service: jest.Mocked<AppService>;
 
   beforeEach(async () => {
-    const app: TestingModule = await Test.createTestingModule({
+    const module: TestingModule = await Test.createTestingModule({
       controllers: [AppController],
-      providers: [AppService],
+      providers: [
+        {
+          provide: AppService,
+          useValue: { getHealth: jest.fn() },
+        },
+      ],
     }).compile();
 
-    appController = app.get<AppController>(AppController);
+    controller = module.get<AppController>(AppController);
+    service = module.get(AppService);
   });
 
-  describe('health', () => {
-    it('should return the API health payload', () => {
-      expect(appController.getHealth()).toEqual({
-        status: 'ok',
-        message: 'API MARCHE',
-      });
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
+  });
+
+  describe('getHealth', () => {
+    it('delegates to AppService.getHealth', () => {
+      const payload: HealthResponse = { status: 'ok', message: 'API MARCHE' };
+      service.getHealth.mockReturnValue(payload);
+
+      expect(controller.getHealth()).toBe(payload);
+      expect(service.getHealth).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns whatever the service returns (no transformation)', () => {
+      const payload: HealthResponse = { status: 'ok', message: 'custom' };
+      service.getHealth.mockReturnValue(payload);
+
+      expect(controller.getHealth()).toEqual(payload);
     });
   });
 });

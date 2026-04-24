@@ -81,12 +81,11 @@ export class AuthService {
     ) ?? '7d') as `${number}m` | `${number}h` | `${number}d` | `${number}s`;
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
-        secret: this.configService.get<string>('JWT_ACCESS_SECRET') ?? 'access',
+        secret: this.configService.getOrThrow<string>('JWT_ACCESS_SECRET'),
         expiresIn: accessExpires,
       }),
       this.jwtService.signAsync(payload, {
-        secret:
-          this.configService.get<string>('JWT_REFRESH_SECRET') ?? 'refresh',
+        secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
         expiresIn: refreshExpires,
       }),
     ]);

@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
   OneToMany,
 } from 'typeorm';
+import { Exclude } from 'class-transformer';
 import { Task } from '../../task/entities/task.entity';
 
 @Entity('users')
@@ -20,11 +21,13 @@ export class User {
   firstName!: string;
 
   @Column({ length: 80, nullable: true })
-  lastName!: string;
+  lastName?: string | null;
 
+  @Exclude({ toPlainOnly: true })
   @Column()
   password!: string;
 
+  @Exclude({ toPlainOnly: true })
   @Column({ type: 'text', nullable: true })
   hashedRefreshToken?: string | null;
 

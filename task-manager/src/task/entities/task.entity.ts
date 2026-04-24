@@ -6,10 +6,15 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { User } from '../../user/entities/user.entity';
 
 @Entity('tasks')
+@Index('idx_tasks_user_created', ['userId', 'createdAt'])
+@Index('idx_tasks_user_status', ['userId', 'status'])
+@Index('idx_tasks_user_due', ['userId', 'dueDate'])
+@Index('idx_tasks_user_priority', ['userId', 'priority'])
 export class Task {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
