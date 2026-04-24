@@ -87,6 +87,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: snyk-security
 
+    permissions:
+      contents: read
+      packages: write
+      id-token: write       
+      attestations: write  
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -112,12 +118,8 @@ jobs:
         run: npm run test
         continue-on-error: true
 
-      - name: Build Docker image
-        run: |
-          docker build \
-            -t ghcr.io/${{ github.repository_owner }}/itnum-backend:${{ github.sha }} \
-            -t ghcr.io/${{ github.repository_owner }}/itnum-backend:latest \
-            ./task-manager
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -126,11 +128,24 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_TOKEN }}
 
-      - name: Push image to GHCR
-        run: |
-          docker push ghcr.io/${{ github.repository_owner }}/itnum-backend:${{ github.sha }}
-          docker push ghcr.io/${{ github.repository_owner }}/itnum-backend:latest
+      - name: Build and push Docker image
+        id: push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./task-manager
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/itnum-backend:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/itnum-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
+      - name: Attest Build Provenance
+        uses: actions/attest-build-provenance@v4.1.0
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/itnum-backend
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
 
   deploy:
     name: Deploy
@@ -152,7 +167,7 @@ jobs:
 
             git pull origin main
 
-            # Créer le fichier .env depuis les secrets
+            # Creer le fichier .env depuis les secrets
             cat > .env << EOF
             NODE_ENV=${{ secrets.NODE_ENV }}
             POSTGRES_DB=${{ secrets.POSTGRES_DB }}
@@ -185,7 +200,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [secrets-scan, snyk-security, build, deploy]
     if: failure()
- 
+
     steps:
       - name: Send failure email
         uses: dawidd6/action-send-mail@v3
@@ -200,22 +215,22 @@ jobs:
           from: "GitHub Actions <${{ secrets.MAIL_USERNAME }}>"
           body: |
             ❌ Le pipeline CI/CD a échoué !
- 
+
             Détails :
             - Repo     : ${{ github.repository }}
             - Branche  : ${{ github.ref_name }}
             - Commit   : ${{ github.sha }}
             - Auteur   : ${{ github.actor }}
- 
+
             👉 Voir les logs :
             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
- 
+
   notify-success:
     name: Notify Success
     runs-on: ubuntu-latest
     needs: deploy
     if: success()
- 
+
     steps:
       - name: Send success email
         uses: dawidd6/action-send-mail@v3
@@ -230,17 +245,17 @@ jobs:
           from: "GitHub Actions <${{ secrets.MAIL_USERNAME }}>"
           body: |
             ✅ Le déploiement s'est terminé avec succès !
- 
+
             Détails :
             - Repo     : ${{ github.repository }}
             - Branche  : ${{ github.ref_name }}
             - Commit   : ${{ github.sha }}
             - Auteur   : ${{ github.actor }}
- 
+
             🌐 Application accessible sur :
             http://${{ secrets.SSH_HOST }}/api
-            http://${{ secrets.SSH_HOST }}/api/docs
-            http://${{ secrets.SSH_HOST }}:3001  # Grafana
- 
+            http://${{ secrets.SSH_HOST }}/docs
+            http://${{ secrets.SSH_HOST }}:3001
+
             👉 Voir le pipeline :
             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

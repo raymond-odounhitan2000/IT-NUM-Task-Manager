@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   backend:
     image: ghcr.io/raymond-odounhitan2000/it-num-task-manager-backend:latest
